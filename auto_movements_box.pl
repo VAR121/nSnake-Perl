@@ -27,7 +27,7 @@ my $startX = int( $max_col * 0.2 );
 my $endY   = $startY + $height;
 my $endX   = $startX + $width;
 
-my ( $eggX, $eggY, $score, $pkey, $key, @snake );
+my ( $eggX, $eggY, $score, $pkey, $key, @snake, $eggs_eaten );
 
 $pkey = KEY_RIGHT;
 
@@ -45,13 +45,10 @@ sub init_game {
 
 move_snake();
 
-refresh();
-getch();
-napms(2000);
+# refresh();
+# getch();
+# napms(2000);
 endwin();
-
-# p(@snake);
-my ( $p1x, $p1y, $p2x, $p2y );
 
 sub move_snake {
 
@@ -59,54 +56,95 @@ sub move_snake {
         $key = getch();
         if ( $key == -1 ) {
             $key = $pkey;
+        } elsif ( $key eq 'q') {
+            last;
         }
-        my ( $holderY, $holderX );
+        elsif ( $pkey == KEY_LEFT && $key == KEY_RIGHT ) {
+            next;
+        }
+        elsif ( $pkey == KEY_RIGHT && $key == KEY_LEFT ) {
+            next;
+        }
+        elsif ( $pkey == KEY_UP && $key == KEY_DOWN ) {
+            next;
+        }
+        elsif ( $pkey == KEY_DOWN && $key == KEY_UP ) {
+            next;
+        }
+
+        if ( $snake[0][1] + 1 == $endX && $key == KEY_RIGHT ) {
+            $snake[0][1] = $startX + 1;
+        }
+        elsif ( $snake[0][1] - 1 == $startX && $key == KEY_LEFT ) {
+            $snake[0][1] = $endX - 1;
+        }
+        elsif ( $snake[0][0] - 1 == $startY && $key == KEY_UP ) {
+            $snake[0][0] = $endY - 1;
+        }
+        elsif ( $snake[0][0] + 1 == $endY && $key == KEY_DOWN ) {
+            $snake[0][0] = $startY + 1;
+        }
+
         if ( $key == KEY_RIGHT ) {
+            if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
+                unshift @snake, [ $eggY, $eggX ];
+                score( ++$eggs_eaten * 5 );
+                spawn_food();
+            }
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][1]++;
-            draw_snake();
-            refresh();
-            napms(200);
         }
         elsif ( $key == KEY_LEFT ) {
+            if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
+                unshift @snake, [ $eggY, $eggX ];
+                score( ++$eggs_eaten * 5 );
+                spawn_food();
+            }
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][1]--;
-            draw_snake();
-            refresh();
-            napms(200);
         }
         elsif ( $key == KEY_UP ) {
+            if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
+                unshift @snake, [ $eggY, $eggX ];
+                score( ++$eggs_eaten * 5 );
+                spawn_food();
+            }
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][0]--;
-            draw_snake();
-            refresh();
-            napms(200);
+
         }
         elsif ( $key == KEY_DOWN ) {
+
+            if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
+                unshift @snake, [ $eggY, $eggX ];
+                score( ++$eggs_eaten * 5 );
+                spawn_food();
+            }
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][0]++;
-            draw_snake();
-            refresh();
-            napms(200);
         }
+        draw_board();
+        score();
+        refresh();
+        napms(100);
         $pkey = $key;
     }
 
 }
 
-sub draw_snake {
+sub draw_board {    #draws, snake and fruits
 
     for my $y ( $startY + 1 .. $endY - 1 ) {
         for my $x ( $startX + 1 .. $endX - 1 ) {
@@ -115,10 +153,16 @@ sub draw_snake {
         }
     }
 
+    move( $eggY, $eggX );
+    attron( COLOR_PAIR(1) );
+    addch(ACS_DIAMOND);
+    attroff( COLOR_PAIR(1) );
+
     for my $i ( 0 .. $#snake ) {
         move( $snake[$i][0], $snake[$i][1] );
         addch(ACS_BLOCK);
     }
+
     refresh();
 }
 
@@ -126,7 +170,7 @@ sub init_snake {
     my $headX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
     my $headY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
 
-    for ( reverse 0 .. 4 ) {
+    for ( 0 .. 0 ) {
         push( @snake, [ $headY + $_, $headX ] );
     }
 }
@@ -134,11 +178,6 @@ sub init_snake {
 sub spawn_food {
     $eggX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
     $eggY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
-    move( $eggY, $eggX );
-    attron( COLOR_PAIR(1) );
-    addch(ACS_DIAMOND);
-    attroff( COLOR_PAIR(1) );
-    refresh();
 }
 
 sub draw_box {
@@ -232,55 +271,3 @@ sub show_name {
     }
     clear();
 }
-
-# while ( $key ne "q" ) {
-
-#     getyx( $row, $col );
-#     $key = getch();
-
-#     if ( $key == -1 ) {
-#         $key = $pkey;
-#     }
-
-#     if ( $col == 2 && $key == KEY_LEFT ) {
-#         next;
-#     }
-#     elsif ( $col == $max_col - 1 && $key == KEY_RIGHT ) {
-#         next;
-#     }
-#     elsif ( $row == 1 && $key == KEY_UP ) {
-#         next;
-#     }
-#     elsif ( $row == $max_row - 2 && $key == KEY_DOWN ) {
-#         next;
-#     }
-
-#     if ( $key == KEY_LEFT ) {
-#         move( $row, --$col );
-#         printw(" ");
-#         move( $row, --$col );
-#         printw("#");
-
-#     }
-#     elsif ( $key == KEY_RIGHT ) {
-#         move( $row, --$col );
-#         printw(" ");
-#         move( $row, ++$col );
-#         printw("#");
-#     }
-#     elsif ( $key == KEY_UP ) {
-#         move( $row, --$col );
-#         printw(" ");
-#         move( --$row, $col );
-#         printw("#");
-#     }
-#     elsif ( $key == KEY_DOWN ) {
-#         move( $row, --$col );
-#         printw(" ");
-#         move( ++$row, $col );
-#         printw("#");
-#     }
-#     refresh();
-#     $pkey = $key;
-#     napms(100);
-# }
