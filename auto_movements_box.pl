@@ -4,6 +4,7 @@
 #Purpose: Moving Cursor All over the term screen
 
 use Curses;
+use Data::Printer;
 use strict;
 
 initscr();
@@ -26,16 +27,14 @@ my $startX = int( $max_col * 0.2 );
 my $endY   = $startY + $height;
 my $endX   = $startX + $width;
 
-my ( $headX, $headY, $eggX, $eggY, $score, $pkey, $key, $snake_len );
-my($pX, $pY);
-
+my ( $eggX, $eggY, $score, $pkey, $key, @snake );
 
 $pkey = KEY_RIGHT;
-$snake_len = 5;
 
 init_game();
 
 sub init_game {
+
     # show_name();
     banner();
     draw_box();
@@ -44,61 +43,92 @@ sub init_game {
     init_snake();
 }
 
-move_snake($headY, $headX);
+move_snake();
 
 refresh();
 getch();
-napms(20000);
+napms(2000);
 endwin();
+
+# p(@snake);
+my ( $p1x, $p1y, $p2x, $p2y );
 
 sub move_snake {
 
-    my $headrow = shift;
-    my $headcol = shift;
-
     while (1) {
         $key = getch();
-        if ($key == -1) {
+        if ( $key == -1 ) {
             $key = $pkey;
         }
-
-        if ($key == KEY_RIGHT) {
-            move($headrow, $headcol);
-            addch("*");
-            move($headrow, ++$headcol);
-            addch(ACS_BLOCK);
-            # refresh();
+        my ( $holderY, $holderX );
+        if ( $key == KEY_RIGHT ) {
+            for my $i ( reverse( 1 .. $#snake ) ) {
+                $snake[$i][0] = $snake[ $i - 1 ][0];
+                $snake[$i][1] = $snake[ $i - 1 ][1];
+            }
+            $snake[0][1]++;
+            draw_snake();
             refresh();
-            napms(500);
-
-            $pX = $headcol - 1;
-            $pY = $headrow;
-
-            # for my $i (1 .. $snake_len - 1) {
-            #     move($pY, $pX);
-            #     addch(ACS_BLOCK);
-            #     move($pY - 1, $pX);
-            #     addch("*");
-            #     refresh();
-            #     napms(500);
-            #     # addch("*");
-            # }
+            napms(200);
         }
+        elsif ( $key == KEY_LEFT ) {
+            for my $i ( reverse( 1 .. $#snake ) ) {
+                $snake[$i][0] = $snake[ $i - 1 ][0];
+                $snake[$i][1] = $snake[ $i - 1 ][1];
+            }
+            $snake[0][1]--;
+            draw_snake();
+            refresh();
+            napms(200);
+        }
+        elsif ( $key == KEY_UP ) {
+            for my $i ( reverse( 1 .. $#snake ) ) {
+                $snake[$i][0] = $snake[ $i - 1 ][0];
+                $snake[$i][1] = $snake[ $i - 1 ][1];
+            }
+            $snake[0][0]--;
+            draw_snake();
+            refresh();
+            napms(200);
+        }
+        elsif ( $key == KEY_DOWN ) {
+            for my $i ( reverse( 1 .. $#snake ) ) {
+                $snake[$i][0] = $snake[ $i - 1 ][0];
+                $snake[$i][1] = $snake[ $i - 1 ][1];
+            }
+            $snake[0][0]++;
+            draw_snake();
+            refresh();
+            napms(200);
+        }
+        $pkey = $key;
     }
-
 
 }
 
-sub init_snake {
-    $headX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
-    $headY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
+sub draw_snake {
 
-    for (reverse 0 .. $snake_len - 1) {
-        move($headY - $_, $headX);
+    for my $y ( $startY + 1 .. $endY - 1 ) {
+        for my $x ( $startX + 1 .. $endX - 1 ) {
+            move( $y, $x );
+            addch(" ");
+        }
+    }
+
+    for my $i ( 0 .. $#snake ) {
+        move( $snake[$i][0], $snake[$i][1] );
         addch(ACS_BLOCK);
     }
     refresh();
+}
 
+sub init_snake {
+    my $headX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
+    my $headY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
+
+    for ( reverse 0 .. 4 ) {
+        push( @snake, [ $headY + $_, $headX ] );
+    }
 }
 
 sub spawn_food {
