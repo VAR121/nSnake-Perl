@@ -4,37 +4,88 @@
 use Curses;
 use strict;
 
-initscr();
-cbreak();
-noecho();
-keypad(1);
-nodelay(1);
-curs_set(0);
-start_color();
+initscr();        #initiate alt.buffer of term for starting ncurses display
+cbreak();         #disable line buffer
+noecho();         #do-not display character entered on screen
+keypad(1);        #enable reading of arrow keys
+curs_set(0);      #do-not display cursor
+start_color();    #Start color mode for displaying colors
 
-init_pair( 1, COLOR_RED,   COLOR_BLACK );
-init_pair( 2, COLOR_GREEN, COLOR_BLACK );
+#Initiating color pairs, first option is fore-ground color and second option is background color
+init_pair( 1, COLOR_RED,    COLOR_BLACK );
+init_pair( 2, COLOR_GREEN,  COLOR_BLACK );
+init_pair( 3, COLOR_BLUE,   COLOR_BLACK );
+init_pair( 4, COLOR_YELLOW, COLOR_BLACK );
 
+#Get max. possible rows and columns displayed on current terminal
+#in nCurses, rows(y-axis) comes as first option, and columns(x-axis) comes as second option
 getmaxyx( my $max_row, my $max_col );
 
+#60% of max-cols is width of box, and 60% of max-rows is height of box
 my $width  = int( $max_col * 0.6 );
 my $height = int( $max_row * 0.6 );
+
+#start drawing box boundary at 20% th of max-rows and cols
 my $startY = int( $max_row * 0.2 );
 my $startX = int( $max_col * 0.2 );
-my $endY   = $startY + $height;
-my $endX   = $startX + $width;
 
-my ( $eggX, $eggY, $score, $pkey, $key, @snake, $eggs_eaten );
+#endY and endX are decided by height and width(60% of possible size of the screen)
+my $endY = $startY + $height;
+my $endX = $startX + $width;
 
-# $pkey = KEY_RIGHT;
+#eggY, and eggX stores Y and X co-ordinates of eggs spawned by spawn_food func.
+#pkey=Previous Key; $key=Current-key(for stroring directions)
 
+#@snake; For storing snake co-ordinates
+#@snake is AoA(Array of arrays, each element of parent array is array itself,
+#having Y and X co-ordinates of that segment
+
+#$time; stores time, gets from time() base perl function
+#$timmer_running for controlling special eggs display
+my ($eggX,           $eggY,  $score,      $pkey,
+    $key,            @snake, $eggs_eaten, $time,
+    $timmer_running, $i,     $color_snake
+);
+
+#initate game
 init_game();
+
+#function to control snake movement, main logic for
+# snake movement, collision detection, and
+# score-keeping happens here
 move_snake();
+
+#exit game to terminal
 game_over();
+
+#restore-terminal settings and disable alt-buffer(opposite of initscr)
 endwin();
 
+#init-game initiates, displays, game name, draws-box, banner and initiates score display
+#accespts option to display instructions or start game
+
 sub init_game {
-    show_name();
+    my $option = show_name();
+    if ( $option eq "i" ) {
+        instructions();
+        clear();
+
+        #make snake empty, for display purposes snake segments
+        #were popuplated in instructions function
+        @snake = ();
+    }
+    elsif ( $option eq "p" ) {
+
+        #continue with play
+    }
+    else {
+        game_over();
+    }
+
+    #nodelay disables blocking i/o, means i/o becomes non-blocking,
+    #means game loop doesn't wait for user to enter keys
+    nodelay(1);
+
     banner();
     draw_box();
     init_snake();
@@ -42,17 +93,27 @@ sub init_game {
     score(0);
 }
 
-
 sub move_snake {
 
     while (1) {
         $key = getch();
         if ( $key == -1 ) {
+
+            #If No-key is registered, key will be previous key
+            $key = $pkey;
+        }
+        elsif ( $key eq 'c' ) {
+            $color_snake = ( $color_snake == 1 ? 0 : 1 );
             $key = $pkey;
         }
         elsif ( $key eq 'q' ) {
+
+            #exit game if key hit is "q"
             last;
         }
+
+        #Check if LegalKey or not, snake can't go right,
+        #when snake is moving left, etc
         elsif ( $pkey == KEY_LEFT && $key == KEY_RIGHT ) {
             next;
         }
@@ -66,6 +127,7 @@ sub move_snake {
             next;
         }
 
+        #Boundaries are penetrable, Reset snake head position, if hit boundary
         if ( $snake[0][1] + 1 == $endX && $key == KEY_RIGHT ) {
             $snake[0][1] = $startX + 1;
         }
@@ -79,34 +141,65 @@ sub move_snake {
             $snake[0][0] = $startY + 1;
         }
 
+        #Four Steps when key press is legal
+        #Step-1: Ate food ? check if snake head hit a egg
+        #Step-2: Snake eating itself ? Avoid hitting snake body
+        #Step-3: Update position of every snake segment to previous segment
+        #Step-4: Update snake heads position based on key pressed
+
         if ( $key == KEY_RIGHT ) {
             if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
-                unshift @snake, [ $eggY, $eggX ];
-                score( ++$eggs_eaten * 5 );
+
+                #snake ate a egg, add one segment to snake
+                unshift( @snake, [ $eggY, $eggX ] );
+
+                if ( time < $time ) {
+
+                    #"$time" comes from line-274, while initiating a special
+                    #egg, every fifth egg is special
+                    #if it's a special egg, increase socre by 100 points
+                    $score += 100;
+                }
+                else {
+                    $score += 5;
+                }
+                $eggs_eaten++;
                 spawn_food();
             }
-
             for my $x ( 1 .. $#snake ) {
                 if (   $snake[0][0] == $snake[$x][0]
                     && $snake[0][1] + 1 == $snake[$x][1] )
                 {
+                    #head hit body part, game over
                     game_over();
                 }
             }
-
             for my $i ( reverse( 1 .. $#snake ) ) {
+
+                #location of current segment will be of last segment
+                #head position will be updated in next step,
+                #new position for head
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
+
+            #head position is calculated,
+            #if KEY_RIGHT, Head should be moved to next column
             $snake[0][1]++;
         }
+
         elsif ( $key == KEY_LEFT ) {
             if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
-                unshift @snake, [ $eggY, $eggX ];
-                score( ++$eggs_eaten * 5 );
+                unshift( @snake, [ $eggY, $eggX ] );
+                if ( time < $time ) {
+                    $score += 100;
+                }
+                else {
+                    $score += 5;
+                }
+                $eggs_eaten++;
                 spawn_food();
             }
-
             for my $x ( 1 .. $#snake ) {
                 if (   $snake[0][0] == $snake[$x][0]
                     && $snake[0][1] - 1 == $snake[$x][1] )
@@ -114,20 +207,25 @@ sub move_snake {
                     game_over();
                 }
             }
-
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][1]--;
         }
+
         elsif ( $key == KEY_UP ) {
             if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
-                unshift @snake, [ $eggY, $eggX ];
-                score( ++$eggs_eaten * 5 );
+                unshift( @snake, [ $eggY, $eggX ] );
+                if ( time < $time ) {
+                    $score += 100;
+                }
+                else {
+                    $score += 5;
+                }
+                $eggs_eaten++;
                 spawn_food();
             }
-
             for my $x ( 1 .. $#snake ) {
                 if (   $snake[0][0] - 1 == $snake[$x][0]
                     && $snake[0][1] == $snake[$x][1] )
@@ -135,22 +233,25 @@ sub move_snake {
                     game_over();
                 }
             }
-
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
             }
             $snake[0][0]--;
-
         }
-        elsif ( $key == KEY_DOWN ) {
 
+        elsif ( $key == KEY_DOWN ) {
             if ( $snake[0][0] == $eggY && $snake[0][1] == $eggX ) {
-                unshift @snake, [ $eggY, $eggX ];
-                score( ++$eggs_eaten * 5 );
+                unshift( @snake, [ $eggY, $eggX ] );
+                if ( time < $time ) {
+                    $score += 100;
+                }
+                else {
+                    $score += 5;
+                }
+                $eggs_eaten++;
                 spawn_food();
             }
-
             for my $x ( 1 .. $#snake ) {
                 if (   $snake[0][0] + 1 == $snake[$x][0]
                     && $snake[0][1] == $snake[$x][1] )
@@ -158,7 +259,6 @@ sub move_snake {
                     game_over();
                 }
             }
-
             for my $i ( reverse( 1 .. $#snake ) ) {
                 $snake[$i][0] = $snake[ $i - 1 ][0];
                 $snake[$i][1] = $snake[ $i - 1 ][1];
@@ -166,15 +266,16 @@ sub move_snake {
             $snake[0][0]++;
         }
         draw_board();
-        score();
+        score($score);
         refresh();
         napms(100);
         $pkey = $key;
     }
 }
 
-sub draw_board {    #draws, snake and fruits
+sub draw_board {    #draws, snake and eggs
 
+    #clear the board by putting " "
     for my $y ( $startY + 1 .. $endY - 1 ) {
         for my $x ( $startX + 1 .. $endX - 1 ) {
             move( $y, $x );
@@ -183,48 +284,107 @@ sub draw_board {    #draws, snake and fruits
     }
 
     move( $eggY, $eggX );
-    attron( COLOR_PAIR(1) );
-    addch(ACS_DIAMOND);
-    attroff( COLOR_PAIR(1) );
+    if ( $eggs_eaten % 5 || $eggs_eaten == 0 ) {
+        attron( COLOR_PAIR(1) );
+        addch(ACS_DIAMOND);
+        attroff( COLOR_PAIR(1) );
 
-    for my $i ( 0 .. $#snake ) {
-        move( $snake[$i][0], $snake[$i][1] );
-        addch(ACS_BLOCK);
+        #reset timer, so that for next special,
+        #if not timer will not be switched off after 5 seconds
+        $timmer_running = 0;
+    }
+    else {
+        if ( !($timmer_running) ) {
+            $time = time + 5;
+            $timmer_running++;
+        }
+        if ( $time > time ) {
+
+            # for five seconds egg is special
+            give_spl_egg($time);
+        }
+        else {
+            # after five seconds egg is regular
+            attron( COLOR_PAIR(1) );
+            addch(ACS_DIAMOND);
+            attroff( COLOR_PAIR(1) );
+        }
     }
 
+    if ( $color_snake == 0 ) {
+        for my $i ( 0 .. $#snake ) {
+            move( $snake[$i][0], $snake[$i][1] );
+            addch(ACS_BLOCK);
+        }
+    }
+    else {
+        clr_snake();
+    }
     refresh();
 }
 
+sub clr_snake {
+    for my $i ( 0 .. $#snake ) {
+        my $code = int rand 5;
+        attron( COLOR_PAIR($code) );
+        move( $snake[$i][0], $snake[$i][1] );
+        addch(ACS_BLOCK);
+        attroff( COLOR_PAIR($code) );
+    }
+}
+
 sub init_snake {
+
+    #get a random Y and X within the box to display first snake head segment
+
     my $headX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
     my $headY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
 
-    push( @snake, [ $headY + $_, $headX ] );
+    push( @snake, [ $headY, $headX ] );    # snake head, pushed to @snake
 }
 
 sub spawn_food {
+
+    #get a random Y and X within the box to set location of egg
     $eggX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
     $eggY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
 }
 
-sub game_over {
-    for my $y ( $startY + 1 .. $endY - 1 ) {
-        for my $x ( $startX + 1 .. $endX - 1 ) {
-            move( $y, $x );
-            addch(" ");
-        }
+sub give_spl_egg {
+
+    #for-every alternate call to this function, color of egg changes
+    if ( $i % 2 ) {
+        attron( COLOR_PAIR(1) );
     }
+    else {
+        attron( COLOR_PAIR(2) );
+    }
+    addch(ACS_DIAMOND);
+    if ( $i % 2 ) {
+        attroff( COLOR_PAIR(1) );
+    }
+    else {
+        attroff( COLOR_PAIR(2) );
+    }
+    $i++;
+}
+
+sub game_over {
+    clear();
     move( $max_row * 0.5, $max_col * 0.5 );
     attron( COLOR_PAIR(1) );
     printw("GAME OVER!!");
     attroff( COLOR_PAIR(1) );
     refresh();
-    napms(2000);
+    napms(1000);
     endwin();
     exit;
 }
 
 sub draw_box {
+
+    #draws acs-hlines(horizontal-line) and acs-vline(vertical-line
+    #along the border
 
     for my $x ( $startX .. $endX ) {
         move( $startY, $x );
@@ -239,6 +399,9 @@ sub draw_box {
         move( $y, $endX );
         addch(ACS_VLINE);
     }
+
+    # draws corners, ULCORNER-Upper-Left corner,
+    # and others as per location of corner
     move( $startY, $startX );
     addch(ACS_ULCORNER);
     move( $endY, $startX );
@@ -248,7 +411,6 @@ sub draw_box {
     addch(ACS_URCORNER);
     move( $endY, $endX );
     addch(ACS_LRCORNER);
-    refresh();
 }
 
 sub score {
@@ -257,10 +419,14 @@ sub score {
     my $y = $endY + 2;
     move( $y, $x );
     printw("Score: $s");
-    refresh();
 }
 
 sub banner {
+
+    #$x, and $y are to decide location of banner display,
+    # -7 from $max-cols and -2 from $startY use are for centering the banner,
+    #center-justified text
+
     my $x = $max_col / 2 - 7;
     my $y = $startY - 2;
     move( $y, $x );
@@ -288,7 +454,9 @@ sub show_name {
 
     );
 
-    for my $i ( 0 .. 10 ) {
+    #Switch between Red and Green 10 times
+
+    for my $i ( 0 .. 1 ) {
         my $startX = $max_col * 0.3;
         my $startY = $max_row * 0.3;
         if ( $i % 2 == 0 ) {
@@ -310,8 +478,70 @@ sub show_name {
             attroff( COLOR_PAIR(2) );
         }
         napms(800);
-        move( $startY + 2, $startX + 5 );
-        printw("by VARAM");
+        move( $startY + 2, $max_col * .5 );
+        printw("by R\@M");
     }
-    clear();
+    move( $endY - 10, $max_col * .5 );
+    my @options = qw/i:Instructions p:Play q:Quit/;
+    printw("Press:");
+    for my $i ( 0 .. $#options ) {
+        move( $endY - 9 + $i, $max_col * .5 );
+        printw("$options[$i]");
+    }
+    refresh();
+    my $mode = getch();
+    if ( $mode =~ /[ipq]/ ) {
+        return ($mode);
+    }
+    else {
+        return ("q");
+    }
 }
+
+sub instructions () {
+    clear();
+    draw_box();
+    banner();
+
+    move( $startY + 5, $startX + 5 );
+    addch(ACS_LARROW);
+    addch(" ");
+    addch(ACS_RARROW);
+    printw("       Use Direction keys to navigate snake");
+    move( $startY + 4, $startX + 6 );
+    addch(ACS_UARROW);
+    move( $startY + 6, $startX + 6 );
+    addch(ACS_DARROW);
+
+    move( $startY + 10, $startX + 6 );
+    attron( COLOR_PAIR(1) );
+    addch(ACS_DIAMOND);
+    attroff( COLOR_PAIR(1) );
+    printw("       Red egg for 5 points");
+
+    my $time = time + 10;
+
+    # my @snake;
+
+    push @snake, [$startY + 16, $startX + 6 + $_] for 0 .. 4;
+
+    while (1) {
+        move( $startY + 12, $startX + 6 );
+        give_spl_egg();
+        printw(
+            "       Should be consumed within 5 seconds for 100 points. Every 5th egg is special"
+        );
+
+        move( $startY + 12, $startX + 10 );
+        clr_snake();
+        printw("       Press \'c\' for Color Snake, while playing game, fun addtion");
+
+        move( $endY - 5, $startX + 5 );
+        my $startsin = int( $time - time );
+        printw("       Game starts in $startsin seconds ");
+        return if ( $startsin <= 0 );
+        refresh();
+    }
+}
+
+#attroff, attron: Attribute ON and Attribute OFF
