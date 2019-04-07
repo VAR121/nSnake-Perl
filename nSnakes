@@ -320,7 +320,6 @@ sub draw_board {    #draws, snake and eggs
     else {
         clr_snake();
     }
-    refresh();
 }
 
 sub clr_snake {
@@ -346,6 +345,9 @@ sub init_snake {
 sub spawn_food {
 
     #get a random Y and X within the box to set location of egg
+    #in some rare cases, egg may get spawned on snake body,
+    #since it's rare event, i've not added code to prevent it.
+    #if it happens while playing game, have fun!!! ;P 
     $eggX = int( rand( $endX - $startX - 1 ) ) + $startX + 1;
     $eggY = int( rand( $endY - $startY - 1 ) ) + $startY + 1;
 }
@@ -456,7 +458,7 @@ sub show_name {
 
     #Switch between Red and Green 10 times
 
-    for my $i ( 0 .. 1 ) {
+    for my $i ( 0 .. 10 ) {
         my $startX = $max_col * 0.3;
         my $startY = $max_row * 0.3;
         if ( $i % 2 == 0 ) {
@@ -477,7 +479,7 @@ sub show_name {
         else {
             attroff( COLOR_PAIR(2) );
         }
-        napms(800);
+        napms(200);
         move( $startY + 2, $max_col * .5 );
         printw("by R\@M");
     }
@@ -544,4 +546,12 @@ sub instructions () {
     }
 }
 
+###############N-Curses Functions Used####################
+
 #attroff, attron: Attribute ON and Attribute OFF
+#napms: take a nap for milliseconds 
+#refresh: Re-Draw screen with updated changes
+#addch: Add a character
+#printw: add a string
+#move: move to Y, X position
+
